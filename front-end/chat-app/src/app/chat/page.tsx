@@ -1,44 +1,74 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
+import DOMPurify from 'dompurify';
+import { marked } from 'marked';
 
+// Định nghĩa kiểu cho các tin nhắn
 interface Message {
-  sender: 'user' | 'ai';
-  text: string;
+  role: 'user' | 'assistant';
+  content: string;
+  htmlContent?: string; // Thêm trường này để lưu HTML đã chuyển đổi
 }
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]); // Sử dụng mảng các đối tượng kiểu Message
   const [input, setInput] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(false); // State để quản lý trạng thái loading
 
   const handleSendMessage = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!input) return;
+    if (!input.trim()) return;
 
-    // Thêm tin nhắn của người dùng vào danh sách
-    setMessages((prevMessages) => [
-      ...prevMessages,
-      { sender: 'user', text: input },
-    ]);
+    // Thêm tin nhắn của người dùng vào lịch sử tin nhắn
+    const newMessages: Message[] = [...messages, { role: 'user', content: input }]; // Đảm bảo kiểu dữ liệu của newMessages là mảng Message
 
-    // Gọi API để nhận phản hồi từ AI
-    const response = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: input }),
-    });
-
-    const data = await response.json();
-
-    // Thêm tin nhắn của AI vào danh sách (chỉ thêm AI, không thêm người dùng nữa)
-    setMessages((prevMessages) => [
-      ...prevMessages,
-      { sender: 'ai', text: data.reply },
-    ]);
-
-    // Xoá input sau khi gửi
+    // Xóa nội dung ô input ngay lập tức
     setInput('');
+    setMessages(newMessages);
+    setLoading(true); // Bắt đầu trạng thái loading
+
+    try {
+      // Gọi API `/api/chat` và gửi toàn bộ lịch sử tin nhắn
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ messages: newMessages }), // Gửi toàn bộ lịch sử tin nhắn
+      });
+
+      const data = await response.json();
+
+      // Chuyển đổi nội dung Markdown của phản hồi thành HTML
+      const formattedMessage = await sanitizeAndFormatMessage(data.reply);
+
+      // Thêm phản hồi của AI (bao gồm HTML đã chuyển đổi) vào lịch sử tin nhắn
+      setMessages((prevMessages) => [
+        ...prevMessages,
+        { role: 'assistant', content: data.reply, htmlContent: formattedMessage },
+      ]);
+
+      setLoading(false); // Dừng trạng thái loading
+    } catch (error) {
+      console.error('Error calling chat API:', error);
+      setLoading(false); // Dừng trạng thái loading nếu có lỗi
+    }
+  };
+
+  // Hàm để chuyển đổi và làm sạch nội dung từ Markdown sang HTML
+  const sanitizeAndFormatMessage = async (message: string): Promise<string> => {
+    try {
+      // Sử dụng `await` để xử lý kết quả từ `marked()`, vì nó có thể trả về Promise
+      const htmlContent: string = marked(message);
+
+      // Làm sạch nội dung HTML để tránh các nguy cơ XSS
+      return DOMPurify.sanitize(htmlContent);
+    } catch (error) {
+      console.error('Error processing message content:', error);
+      return message; // Trả về message gốc nếu có lỗi
+    }
   };
 
   return (
@@ -55,35 +85,47 @@ export default function ChatPage() {
             <div
               key={index}
               className={`flex ${
-                message.sender === 'user' ? 'justify-end' : 'justify-start'
+                message.role === 'user' ? 'justify-end' : 'justify-start'
               }`}
             >
               <div
                 className={`p-4 rounded-lg shadow-lg ${
-                  message.sender === 'user'
+                  message.role === 'user'
                     ? 'bg-blue-500 text-white'
                     : 'bg-gray-200 text-black'
                 } max-w-xs`}
               >
-                {message.text}
+                {/* Hiển thị tin nhắn của user trực tiếp và assistant dưới dạng HTML */}
+                {message.role === 'assistant' ? (
+                  <div dangerouslySetInnerHTML={{ __html: message.htmlContent || '' }} />
+                ) : (
+                  <div>{message.content}</div>
+                )}
               </div>
             </div>
           ))}
+          {/* Hiển thị loading nếu đang gửi yêu cầu tới API */}
+          {loading && <div className="text-center">Đang xử lý...</div>}
         </div>
       </div>
 
       {/* Hộp nhập liệu */}
-      <form onSubmit={handleSendMessage} className="flex p-4 bg-gray-200 shadow-md max-w-2xl mx-auto w-full">
+      <form
+        onSubmit={handleSendMessage}
+        className="flex p-4 bg-gray-200 shadow-md max-w-2xl mx-auto w-full"
+      >
         <input
           type="text"
           className="flex-1 p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
           placeholder="Nhập tin nhắn..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          disabled={loading} // Vô hiệu hóa khi đang loading
         />
         <button
           type="submit"
           className="ml-4 p-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          disabled={loading} // Vô hiệu hóa khi đang loading
         >
           Gửi
         </button>
