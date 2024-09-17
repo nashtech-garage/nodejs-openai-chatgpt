@@ -1,8 +1,11 @@
 'use client';
 
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, FormEvent } from 'react';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { dark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import parse from 'html-react-parser';
 
 // Định nghĩa kiểu cho các tin nhắn
 interface Message {
@@ -22,7 +25,7 @@ export default function ChatPage() {
     if (!input.trim()) return;
 
     // Thêm tin nhắn của người dùng vào lịch sử tin nhắn
-    const newMessages: Message[] = [...messages, { role: 'user', content: input }]; // Đảm bảo kiểu dữ liệu của newMessages là mảng Message
+    const newMessages: Message[] = [...messages, { role: 'user', content: input }];
 
     // Xóa nội dung ô input ngay lập tức
     setInput('');
@@ -60,8 +63,8 @@ export default function ChatPage() {
   // Hàm để chuyển đổi và làm sạch nội dung từ Markdown sang HTML
   const sanitizeAndFormatMessage = async (message: string): Promise<string> => {
     try {
-      // Sử dụng `await` để xử lý kết quả từ `marked()`, vì nó có thể trả về Promise
-      const htmlContent: string = marked(message);
+      // Chuyển Markdown sang HTML
+      const htmlContent = marked(message);
 
       // Làm sạch nội dung HTML để tránh các nguy cơ XSS
       return DOMPurify.sanitize(htmlContent);
@@ -69,6 +72,23 @@ export default function ChatPage() {
       console.error('Error processing message content:', error);
       return message; // Trả về message gốc nếu có lỗi
     }
+  };
+
+  // Hàm này để render mã code với SyntaxHighlighter
+  const renderHTMLWithCodeHighlighting = (htmlContent: string) => {
+    return parse(htmlContent, {
+      replace: (domNode: any) => {
+        if (domNode.name === 'code' && domNode.parent && domNode.parent.name === 'pre') {
+          const language = domNode.attribs.class ? domNode.attribs.class.replace('language-', '') : 'text';
+          const code = domNode.children[0]?.data || '';
+          return (
+            <SyntaxHighlighter language={language} style={dark}>
+              {code}
+            </SyntaxHighlighter>
+          );
+        }
+      },
+    });
   };
 
   return (
@@ -80,7 +100,7 @@ export default function ChatPage() {
 
       {/* Khu vực tin nhắn */}
       <div className="flex-1 p-6 overflow-y-auto bg-white shadow-inner">
-        <div className="max-w-2xl mx-auto space-y-4">
+        <div className="max-w-4xl mx-auto space-y-4">
           {messages.map((message, index) => (
             <div
               key={index}
@@ -93,11 +113,11 @@ export default function ChatPage() {
                   message.role === 'user'
                     ? 'bg-blue-500 text-white'
                     : 'bg-gray-200 text-black'
-                } max-w-xs`}
+                } max-w-lg prose prose-code`}
               >
                 {/* Hiển thị tin nhắn của user trực tiếp và assistant dưới dạng HTML */}
                 {message.role === 'assistant' ? (
-                  <div dangerouslySetInnerHTML={{ __html: message.htmlContent || '' }} />
+                  <div>{renderHTMLWithCodeHighlighting(message.htmlContent || '')}</div>
                 ) : (
                   <div>{message.content}</div>
                 )}

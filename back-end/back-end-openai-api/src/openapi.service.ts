@@ -14,11 +14,14 @@ export class OpenApiService {
 
   async getOpenApiResponse(messages: { role: 'user' | 'assistant' | 'system'; content: string }[]): Promise<string> {
     try {
+      console.log(messages, process.env.GPT_MODEL);
       // Gọi API từ OpenAI với lịch sử tin nhắn
       const response = await this.openai.chat.completions.create({
-        model: 'gpt-3.5-turbo',
+        model: process.env.GPT_MODEL,
         messages, // Gửi lịch sử tin nhắn tới OpenAI với đúng kiểu dữ liệu
       });
+
+      console.log("--> ", response.choices[0].message.content);
 
       // Trả về nội dung tin nhắn phản hồi của AI
       return response.choices[0].message.content;
