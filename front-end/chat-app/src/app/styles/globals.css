@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Tùy chỉnh lớp prose để thay đổi viền cho code block */
+.prose pre {
+  border-width: 0; /* Bỏ viền */
+  padding: 0; /* Bỏ padding mặc định */
+  background-color: transparent; /* Hoặc tuỳ chỉnh background nếu cần */
+}
+
+@keyframes spinner {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.loader {
+  border-top-color: #3498db;
+  animation: spinner 1.5s infinite linear;
+}

@@ -1,101 +1,184 @@
-import Image from "next/image";
+'use client';
+
+import { useState, FormEvent, memo } from 'react';
+import DOMPurify from 'dompurify';
+import { marked } from 'marked';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { a11yDark as dark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import parse from 'html-react-parser';
+import katex from 'katex';
+import 'katex/dist/katex.min.css'; // KaTeX CSS
+
+// Định nghĩa kiểu cho các tin nhắn
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+  htmlContent?: string; // Thêm trường này để lưu HTML đã chuyển đổi
+}
+
+// Hàm này để render mã code với SyntaxHighlighter
+const renderHTMLWithCodeHighlighting = (gptContent: string) => {
+  // console.log("Noi dung ban dau : --> ", gptContent);
+  gptContent = gptContent.replace(/\\\[\s*([\s\S]*?)\s*\\\]/g, '\\[ $1 \\]');
+  const katexContent = gptContent.replace(/\\\((.*?)\\\)|\\\[(.*?)\\\]/g, (match, inline, display) => {
+    const formula = inline || display;
+    const renderedFormula = katex.renderToString(formula, {
+      throwOnError: true,
+      displayMode: !!display, // Display mode nếu là \[...\]
+    });
+    return renderedFormula;
+  });
+
+  // console.log("Sau khi replace katex: --> ", katexContent);
+
+  const htmlContent = marked(katexContent);
+
+  // console.log("Noi dung htmlContent sau khi dùng marked: --> ", htmlContent);
+  
+  const sanitizedContent = DOMPurify.sanitize(htmlContent as string);
+
+  // console.log(sanitizedContent);
+  return parse(sanitizedContent, {
+    replace: (domNode: any) => {
+      if (domNode.name === 'code' && domNode.parent && domNode.parent.name === 'pre') {
+        const language = domNode.attribs.class ? domNode.attribs.class.replace('language-', '') : 'text';
+        const code = domNode.children[0]?.data || '';
+        return (
+          <SyntaxHighlighter language={language} style={dark} >
+            {code}
+          </SyntaxHighlighter>
+        );
+      }
+    },
+  });
+};
+
+// Tạo component tin nhắn được memo hóa để tránh render lại không cần thiết
+const MessageBubble = memo(({ index, message }: { index: number, message: Message }) => {
+  return (
+    <div
+      key={index}
+      className={`flex ${
+        message.role === 'user' ? 'justify-end' : 'justify-start'
+      }`}
+    >
+      <div
+        className={`p-4 rounded-lg ${
+          message.role === 'user'
+            ? 'bg-blue-500 text-white'
+            : 'bg-gray-200 text-black'
+        } max-w-2xl prose`}
+      >
+        {/* Hiển thị tin nhắn của user trực tiếp và assistant dưới dạng HTML */}
+        {message.role === 'assistant' ? (
+          <div>{renderHTMLWithCodeHighlighting(message.content || '')}</div>
+        ) : (
+          <div>{parse(marked(message.content) as string)}</div>
+        )}
+      </div>
+    </div>
+  );
+});
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [messages, setMessages] = useState<Message[]>([]); // Sử dụng mảng các đối tượng kiểu Message
+  const [input, setInput] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(false); // State để quản lý trạng thái loading
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const handleSendMessage = async (e: FormEvent) => {
+    e.preventDefault();
+
+    if (!input.trim()) return;
+
+    // Thêm tin nhắn của người dùng vào lịch sử tin nhắn
+    const newMessages: Message[] = [...messages, { role: 'user', content: input }];
+
+    // Xóa nội dung ô input ngay lập tức
+    setInput('');
+    setMessages(newMessages);
+    setLoading(true); // Bắt đầu trạng thái loading
+
+    try {
+      // Gọi API `/api/chat` và gửi toàn bộ lịch sử tin nhắn
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ messages: newMessages }), // Gửi toàn bộ lịch sử tin nhắn
+      });
+
+      const data = await response.json();
+
+      // Chuyển đổi nội dung Markdown của phản hồi thành HTML
+      // const formattedMessage = await sanitizeAndFormatMessage(data.reply);
+
+      // Thêm phản hồi của AI (bao gồm HTML đã chuyển đổi) vào lịch sử tin nhắn
+      setMessages((prevMessages) => [
+        ...prevMessages,
+        { role: 'assistant', content: data.reply, htmlContent: '' }, //formattedMessage },
+      ]);
+
+      setLoading(false); // Dừng trạng thái loading
+    } catch (error) {
+      console.error('Error calling chat API:', error);
+      setLoading(false); // Dừng trạng thái loading nếu có lỗi
+    }
+  };
+
+  // Xử lý khi nhấn Enter và Shift+Enter
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage(e as unknown as FormEvent);
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-screen bg-gray-100">
+      {/* Header */}
+      <header className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-center p-4 text-2xl font-bold shadow-lg">
+        AI Chat
+      </header>
+
+      {/* Khu vực tin nhắn */}
+      <div className="flex-1 p-6 overflow-y-auto bg-white shadow-inner">
+        <div className="max-w-4xl mx-auto space-y-4">
+          {messages.map((message, index) => (
+            <MessageBubble index={index} message={message} />
+          ))}
+          {/* Hiển thị loading nếu đang gửi yêu cầu tới API */}
+          {loading && (
+            <div className="flex justify-center items-center mt-4">
+              <div className="loader ease-linear rounded-full border-8 border-t-8 border-gray-200 h-12 w-12"></div>
+            </div>
+          )}
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+      </div>
+
+      {/* Hộp nhập liệu */}
+      <form
+        onSubmit={handleSendMessage}
+        className="flex p-4 bg-gray-200 shadow-md max-w-2xl mx-auto w-full"
+      >
+        <textarea
+          className="flex-1 p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          placeholder="Nhập tin nhắn..."
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown} // Sự kiện Shift+Enter
+          rows={3} // Để textarea có thể mở rộng
+          disabled={loading}
+        />
+
+        <button
+          type="submit"
+          className="ml-4 p-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          disabled={loading} // Vô hiệu hóa khi đang loading
         >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          Gửi
+        </button>
+      </form>
     </div>
   );
 }
