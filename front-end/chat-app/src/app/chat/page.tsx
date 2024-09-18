@@ -6,6 +6,8 @@ import { marked } from 'marked';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { dark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import parse from 'html-react-parser';
+import katex from 'katex';
+import 'katex/dist/katex.min.css'; // KaTeX CSS
 
 // Định nghĩa kiểu cho các tin nhắn
 interface Message {
@@ -45,12 +47,12 @@ export default function ChatPage() {
       const data = await response.json();
 
       // Chuyển đổi nội dung Markdown của phản hồi thành HTML
-      const formattedMessage = await sanitizeAndFormatMessage(data.reply);
+      // const formattedMessage = await sanitizeAndFormatMessage(data.reply);
 
       // Thêm phản hồi của AI (bao gồm HTML đã chuyển đổi) vào lịch sử tin nhắn
       setMessages((prevMessages) => [
         ...prevMessages,
-        { role: 'assistant', content: data.reply, htmlContent: formattedMessage },
+        { role: 'assistant', content: data.reply, htmlContent: '' }, //formattedMessage },
       ]);
 
       setLoading(false); // Dừng trạng thái loading
@@ -63,8 +65,10 @@ export default function ChatPage() {
   // Hàm để chuyển đổi và làm sạch nội dung từ Markdown sang HTML
   const sanitizeAndFormatMessage = async (message: string): Promise<string> => {
     try {
+      console.log("Noi dung truoc khi lam sạch: ", message);
+
       // Chuyển Markdown sang HTML
-      const htmlContent = marked(message);
+      const htmlContent = await marked(message);
 
       // Làm sạch nội dung HTML để tránh các nguy cơ XSS
       return DOMPurify.sanitize(htmlContent);
@@ -75,8 +79,37 @@ export default function ChatPage() {
   };
 
   // Hàm này để render mã code với SyntaxHighlighter
-  const renderHTMLWithCodeHighlighting = (htmlContent: string) => {
-    return parse(htmlContent, {
+  const renderHTMLWithCodeHighlighting = (gptContent: string) => {
+
+    // console.log("Noi dung ban dau : --> ", gptContent);
+    gptContent = gptContent.replace(/\\\[\s*([\s\S]*?)\s*\\\]/g, '\\[ $1 \\]');
+
+    // console.log("Noi dung sau khi replace xuong hang: ", gptContent);
+
+    // \\\((.*?)\\\)|\\\[(.*?)\\\]
+
+    // coi lai --> \\\((.*?)\\\)|\\\[[\s\S]*?\\\
+    const katexContent = gptContent.replace(/\\\((.*?)\\\)|\\\[(.*?)\\\]/g, (match, inline, display) => {
+      const formula = inline || display;
+      const renderedFormula = katex.renderToString(formula, {
+        throwOnError: true,
+        displayMode: !!display, // Display mode nếu là \[...\]
+      });
+      return renderedFormula;
+      //console.log(formula);
+      //return '';
+    });
+
+    // console.log("Sau khi replace katex: --> ", katexContent);
+
+    const htmlContent = marked(katexContent);
+
+    // console.log("Noi dung htmlContent sau khi dùng marked: --> ", htmlContent);
+    
+    const sanitizedContent = DOMPurify.sanitize(htmlContent);
+
+    // console.log(sanitizedContent);
+    return parse(sanitizedContent, {
       replace: (domNode: any) => {
         if (domNode.name === 'code' && domNode.parent && domNode.parent.name === 'pre') {
           const language = domNode.attribs.class ? domNode.attribs.class.replace('language-', '') : 'text';
@@ -89,6 +122,7 @@ export default function ChatPage() {
         }
       },
     });
+
   };
 
   return (
@@ -109,15 +143,15 @@ export default function ChatPage() {
               }`}
             >
               <div
-                className={`p-4 rounded-lg shadow-lg ${
+                className={`p-4 rounded-lg ${
                   message.role === 'user'
                     ? 'bg-blue-500 text-white'
                     : 'bg-gray-200 text-black'
-                } max-w-lg prose prose-code`}
+                } max-w-2xl prose`}
               >
                 {/* Hiển thị tin nhắn của user trực tiếp và assistant dưới dạng HTML */}
                 {message.role === 'assistant' ? (
-                  <div>{renderHTMLWithCodeHighlighting(message.htmlContent || '')}</div>
+                  <div>{renderHTMLWithCodeHighlighting(message.content || '')}</div>
                 ) : (
                   <div>{message.content}</div>
                 )}
