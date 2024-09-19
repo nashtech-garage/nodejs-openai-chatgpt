@@ -1,11 +1,12 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { OpenApiController } from './openapi.controller';
-import { OpenApiService } from './openapi.service';
+import { OpenApiController } from './modules/open-api/openapi.controller';
+import { OpenApiService } from './modules/open-api/openapi.service';
 import { AwsController } from './aws.controller';
 import { AwsService } from './aws.service';
+import { FunctionToolsService } from './modules/open-api/function-tools.service';
 
 @Module({
   imports: [
@@ -14,6 +15,15 @@ import { AwsService } from './aws.service';
     }),
   ],
   controllers: [AppController, OpenApiController, AwsController],
-  providers: [AppService, OpenApiService, AwsService],
+  providers: [
+    AppService, 
+    OpenApiService,
+    {
+      provide: 'FUNCTION_TOOLS_SERVICES',
+      useFactory: () => forwardRef(() => FunctionToolsService),
+    },
+    FunctionToolsService,
+    AwsService
+  ],
 })
 export class AppModule {}
