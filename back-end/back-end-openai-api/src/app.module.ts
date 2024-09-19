@@ -4,8 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { OpenApiController } from './modules/open-api/openapi.controller';
 import { OpenApiService } from './modules/open-api/openapi.service';
-import { AwsController } from './aws.controller';
-import { AwsService } from './aws.service';
+import { AwsService } from './modules/aws/aws.service';
 import { FunctionToolsService } from './modules/open-api/function-tools.service';
 
 @Module({
@@ -14,7 +13,7 @@ import { FunctionToolsService } from './modules/open-api/function-tools.service'
       isGlobal: true, // Đảm bảo biến môi trường khả dụng toàn bộ ứng dụng
     }),
   ],
-  controllers: [AppController, OpenApiController, AwsController],
+  controllers: [AppController, OpenApiController],
   providers: [
     AppService, 
     OpenApiService,

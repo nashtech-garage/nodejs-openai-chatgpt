@@ -26,16 +26,26 @@ export class OpenApiService {
 
       const messageResponse: ChatCompletionMessageParam = response.choices[0].message;
 
-      console.log('Từ OpenAI tra ve: ', response.choices[0]);
+      console.log('Từ OpenAI tra ve: ', JSON.stringify(response.choices[0], null, '\t'));
 
+      /* 
+        TODO: nhiều trường hợp có nhiều hơn 1 tool_calls, ta sẽ loop qua từng cái rồi gọi, hiện nay đang bị sai, vì mới tạo được 1 cái là đã gọi qua open api service rồi
+      */
       if (messageResponse.tool_calls) {
-        const toolCall = response.choices[0].message.tool_calls[0];
-        const prevAllMessage = [
-          ...messages,
-          messageResponse
-        ]
+        // const toolCalls = response.choices[0].message.tool_calls;
+        // const toolCall = toolCalls[0];
+        //const toolCallsResponse = [];
+        for (const toolCall of messageResponse.tool_calls) {
+          console.log('ToolCall: --> ', toolCall);
 
-        return await this.functionToolsService.processToolChain(toolCall, prevAllMessage);
+          const prevAllMessage = [
+            ...messages,
+            messageResponse
+          ]
+  
+          return await this.functionToolsService.processToolChain(toolCall, prevAllMessage);
+        }
+        // return toolCallsResponse.join(',');
       }
 
       console.log("--> ", response.choices[0].message.content);
