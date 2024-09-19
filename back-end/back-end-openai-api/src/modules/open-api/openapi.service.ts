@@ -1,8 +1,7 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { OpenAI } from 'openai'; // Sử dụng OpenAI từ phiên bản mới
 import { ChatCompletionMessageParam } from 'openai/resources';
-import { tools } from './utils/function-tools';
-
+import { functionToolsDefine as tools } from './function-tools/function-tools.define';
 import { FunctionToolsService } from './function-tools.service';
 
 @Injectable()

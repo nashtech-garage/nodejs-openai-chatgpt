@@ -36,7 +36,6 @@ export class FunctionToolsService {
 		switch (funcName) {
 			case 'getMyBestFood':
 				return await this.getMyBestFood(parsedArgs.count, messages, toolCall);
-				break;
 		}
 	}
 }
