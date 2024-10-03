@@ -26,56 +26,20 @@ export class OpenApiService {
 
       const messageResponse: ChatCompletionMessageParam = response.choices[0].message;
 
-      console.log('Từ OpenAI tra ve: ', JSON.stringify(response.choices[0], null, '\t'));
-
-      let processMessage = [];
-
-      /* 
-        TODO: nhiều trường hợp có nhiều hơn 1 tool_calls, ta sẽ loop qua từng cái rồi gọi, hiện nay đang bị sai, vì mới tạo được 1 cái là đã gọi qua open api service rồi
-      */
       if (messageResponse.tool_calls) {
-        // const toolCalls = response.choices[0].message.tool_calls;
-        // const toolCall = toolCalls[0];
-        //const toolCallsResponse = [];
-
-        console.log('Message truoc khi loop qua toolCall: ', messages);
-        let prevAllMessage = [
+        let processMessage = [
           ...messages,
           messageResponse
         ];
 
-        processMessage = prevAllMessage;
-        //let processedMessage = prevAllMessage;
-
         for (const toolCall of messageResponse.tool_calls) {
-          // console.log('ToolCall: --> ', toolCall);
-
-          // const prevAllMessage = [
-          //   ...messages,
-          //   messageResponse
-          // ]
-
-          // console.log('Message trong loop : ', prevAllMessage);
-  
-          // await this.functionToolsService.processToolChain(toolCall, prevAllMessage);
-
-
           processMessage = [
             ...processMessage,
-            (await this.functionToolsService.processToolChain(toolCall, prevAllMessage))[0]
-          ] 
-
-          // prevAllMessage = [
-          //   ...prevAllMessage,
-          //   processedMessage
-          // ]
+            (await this.functionToolsService.processToolChain(toolCall))[0]
+          ]
         }
-        console.log(processMessage);
         return this.getOpenApiResponse(processMessage, true);
-        // return toolCallsResponse.join(',');
       }
-
-      console.log("--> ", response.choices[0].message.content);
       // Trả về nội dung tin nhắn phản hồi của AI
       return response.choices[0].message.content;
     } catch (error) {
