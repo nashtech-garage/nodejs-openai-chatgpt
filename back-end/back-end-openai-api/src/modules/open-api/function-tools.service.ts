@@ -16,25 +16,27 @@ export class FunctionToolsService {
   constructor(@Inject(forwardRef(() => OpenApiService )) private readonly openApiService: OpenApiService, private readonly awsService: AwsService) {}
 
 	buildMessage = async (messages: ChatCompletionMessageParam[], toolCallId: string, content: string): Promise<ChatCompletionMessageParam[]> => {
-		// Ta phải gán giá trị của OpenAI trả về (assistant vào trong message chain đang có)
-		const updatedMessages: ChatCompletionMessageParam[] = [
-			...messages,
-			{
-				role: 'tool',
-				tool_call_id: toolCallId, // Gắn ID của tool call
-				content: JSON.stringify({ content }) // Trả về danh sách món ăn
-			}
-		];
-		console.log('updatedMessages: ', JSON.stringify(updatedMessages, null ,"\t") );
+		const updatedMessages: ChatCompletionMessageParam[] = [{
+			role: 'tool',
+			tool_call_id: toolCallId, // Gắn ID của tool call
+			content: JSON.stringify({ content }) // Trả về danh sách món ăn
+		}]
+
 		return updatedMessages;
 	}
 
-	callOpenAIApi = async( messages: ChatCompletionMessageParam[], toolCallId: string, content: string): Promise<string> => {
-		const updatedMessages: ChatCompletionMessageParam[] = await this.buildMessage(messages, toolCallId, content);
-		return this.openApiService.getOpenApiResponse(updatedMessages, true);
+	callOpenAIApi = async( messages: ChatCompletionMessageParam[], toolCallId: string, content: string): Promise<ChatCompletionMessageParam[]> => {
+		// const updatedMessages: ChatCompletionMessageParam[] = await this.buildMessage(messages, toolCallId, content);
+
+		const updatedMessages = await this.buildMessage(messages, toolCallId, content);
+
+		// console.log(`Voi toolCallId: ${toolCallId} ta có message: ${JSON.stringify(updatedMessages).substring(10)} `)
+
+		return updatedMessages;
+		// return this.openApiService.getOpenApiResponse(updatedMessages, true);
 	}
 
-	getMyBestFood = async (count: number, messages: ChatCompletionMessageParam[], toolCall: ChatCompletionMessageToolCall): Promise<string> => {
+	getMyBestFood = async (count: number, messages: ChatCompletionMessageParam[], toolCall: ChatCompletionMessageToolCall): Promise<ChatCompletionMessageParam[]> => {
 		const danhsach =  await vietnamBestFoods(count);
 		console.log('Danh sach: ', danhsach);
 		// Ta phải gán giá trị của OpenAI trả về (assistant vào trong message chain đang có)
@@ -43,28 +45,28 @@ export class FunctionToolsService {
 		// return this.openApiService.getOpenApiResponse(updatedMessages, true);
 	};
 
-	getEC2Status = async (messages: ChatCompletionMessageParam[], toolCall: ChatCompletionMessageToolCall): Promise<string> => {
+	getEC2Status = async (messages: ChatCompletionMessageParam[], toolCall: ChatCompletionMessageToolCall): Promise<ChatCompletionMessageParam[]> => {
 		const instances = await this.awsService.listEC2Instances();
 		return await this.callOpenAIApi(messages, toolCall.id, instances);
 		// const updatedMessages: ChatCompletionMessageParam[] = await this.buildMessage(messages, toolCall.id, instances);
 		// return this.openApiService.getOpenApiResponse(updatedMessages, true);
 	};
 
-	setAWSRegion = async (region: string, messages: ChatCompletionMessageParam[], toolCall: ChatCompletionMessageToolCall): Promise<string> => {
+	setAWSRegion = async (region: string, messages: ChatCompletionMessageParam[], toolCall: ChatCompletionMessageToolCall): Promise<ChatCompletionMessageParam[]> => {
 		const result = await this.awsService.setRegion(region);
 		return await this.callOpenAIApi(messages, toolCall.id, result);
 		// const updatedMessages: ChatCompletionMessageParam[] = await this.buildMessage(messages, toolCall.id, result);
 		// return this.openApiService.getOpenApiResponse(updatedMessages, true);
 	};
 
-	getAWSCost = async (messages: ChatCompletionMessageParam[], toolCall: ChatCompletionMessageToolCall, start_date: string, end_date: string, granularity: GranularityType='MONTHLY', metrics: MetricsType[]=['AmortizedCost']): Promise<string> => {
+	getAWSCost = async (messages: ChatCompletionMessageParam[], toolCall: ChatCompletionMessageToolCall, start_date: string, end_date: string, granularity: GranularityType='MONTHLY', metrics: MetricsType[]=['AmortizedCost']): Promise<ChatCompletionMessageParam[]> => {
 		const costResult = await this.awsService.getAWSCost(start_date, end_date, granularity, metrics);
 		return await this.callOpenAIApi(messages, toolCall.id, JSON.stringify(costResult));
 		// const updatedMessages: ChatCompletionMessageParam[] = await this.buildMessage(messages, toolCall.id, result);
 		// return this.openApiService.getOpenApiResponse(updatedMessages, true);
 	};
 
-	async processToolChain(toolCall: ChatCompletionMessageToolCall, messages: ChatCompletionMessageParam[]) {
+	async processToolChain(toolCall: ChatCompletionMessageToolCall, messages: ChatCompletionMessageParam[]): Promise<ChatCompletionMessageParam[]>  {
 
 		const { name: funcName, arguments: args } = toolCall.function;
 		const parsedArgs = JSON.parse(args);
