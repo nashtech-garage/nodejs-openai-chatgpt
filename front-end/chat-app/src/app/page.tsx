@@ -142,7 +142,7 @@ export default function Home() {
       </header>
 
       {/* Khu vực tin nhắn */}
-      <div className="flex-1 p-6 overflow-y-auto bg-white shadow-inner">
+      <div className="flex-1 p-6 overflow-y-auto bg-white shadow-inner max-h-screen">
         <div className="max-w-4xl mx-auto space-y-4">
           {messages.map((message, index) => (
             <MessageBubble index={index} message={message} />
