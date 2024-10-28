@@ -5,7 +5,8 @@ import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { a11yDark as dark } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import parse from 'html-react-parser';
+import parse, { DOMNode } from 'html-react-parser';
+import { Element, Text } from 'domhandler';
 import katex from 'katex';
 import 'katex/dist/katex.min.css'; // KaTeX CSS
 
@@ -39,10 +40,11 @@ const renderHTMLWithCodeHighlighting = (gptContent: string) => {
 
   // console.log(sanitizedContent);
   return parse(sanitizedContent, {
-    replace: (domNode: any) => {
-      if (domNode.name === 'code' && domNode.parent && domNode.parent.name === 'pre') {
+    replace: (domNode: DOMNode) => {
+      if (domNode instanceof Element && domNode.name === 'code' && (domNode.parent instanceof Element) && domNode.parent.name === 'pre') {
         const language = domNode.attribs.class ? domNode.attribs.class.replace('language-', '') : 'text';
-        const code = domNode.children[0]?.data || '';
+        const childNode = domNode.children[0];
+        const code = (childNode instanceof Text)? childNode.data : '';
         return (
           <SyntaxHighlighter language={language} style={dark} >
             {code}
@@ -54,10 +56,10 @@ const renderHTMLWithCodeHighlighting = (gptContent: string) => {
 };
 
 // Tạo component tin nhắn được memo hóa để tránh render lại không cần thiết
-const MessageBubble = memo(({ index, message }: { index: number, message: Message }) => {
+const MessageBubble = memo(({ key, message }: { key: number, message: Message }) => {
   return (
     <div
-      key={index}
+      key={key}
       className={`flex ${
         message.role === 'user' ? 'justify-end' : 'justify-start'
       }`}
@@ -79,6 +81,8 @@ const MessageBubble = memo(({ index, message }: { index: number, message: Messag
     </div>
   );
 });
+
+MessageBubble.displayName = 'MessageBubble';
 
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]); // Sử dụng mảng các đối tượng kiểu Message
@@ -145,7 +149,7 @@ export default function Home() {
       <div className="flex-1 p-6 overflow-y-auto bg-white shadow-inner max-h-screen">
         <div className="max-w-4xl mx-auto space-y-4">
           {messages.map((message, index) => (
-            <MessageBubble index={index} message={message} />
+            <MessageBubble key={index} message={message} />
           ))}
           {/* Hiển thị loading nếu đang gửi yêu cầu tới API */}
           {loading && (
