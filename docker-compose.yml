@@ -1,0 +1,24 @@
+services:
+  frontend:
+    container_name: chatbot-frontend
+    build:
+      context: ./front-end
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}  # Lấy giá trị từ `environment`
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:3001
+    depends_on:
+      - backend
+
+  backend:
+    container_name: chatgpt-api
+    build:
+      context: ./back-end
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    env_file:
+      - ./build/.env.backend
